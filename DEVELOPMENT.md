@@ -344,7 +344,7 @@ are not moved.
 | `~/Library/Caches/Splash/prefix-cache` (`--cache-dir`) | The [persistent cache](#persistent-cache), with `--persistent-cache` only. |
 | `$TMPDIR/splash-cache-*` | The [SSD cache](#ssd-cache)'s files without `--persistent-cache`, or when another process holds the persistent cache's directory or it cannot be used: one of KV pages and one of states, together at most about `--max-cache-disk`. Each is unlinked as it is created, so no directory lists it, and its space returns when the engine exits, even after a crash. `--cache-dir` does not move them; they follow `TMPDIR`. |
 | `~/Library/Logs/Splash/crash` | [Crash traces](#failures-and-crash-traces), with `SPLASH_CRASH_TRACE=1` only. |
-| Pi's `models.json` (`~/.pi/agent`, or `PI_CODING_AGENT_DIR`) and the Hermes profile (`~/.hermes/profiles/splash`, or `splash-<port>`) | The settings `splash pi` and `splash hermes` write ([agent launchers](#agent-launchers)). Every agent keeps its sessions in its own home; `splash claude`, `codex` and `opencode` pass their settings at launch and write none. |
+| Pi's `models.json` (`~/.pi/agent`, or `PI_CODING_AGENT_DIR`), OMP's `models.yml` (`~/.omp/agent`, profile-aware), and the Hermes profile (`~/.hermes/profiles/splash`, or `splash-<port>`) | The settings `splash pi`, `splash omp` and `splash hermes` write ([agent launchers](#agent-launchers)). Every agent keeps its sessions in its own home; `splash claude`, `codex` and `opencode` pass their settings at launch and write none. |
 
 ## API model aliases
 
@@ -400,7 +400,7 @@ passes itself, such as `tools` or `add_generation_prompt`.
 
 ## Agent launchers
 
-Agents must already be installed; `splash claude|opencode|codex|hermes|pi`
+Agents must already be installed; `splash claude|opencode|codex|hermes|pi|omp`
 connects to the running server. Arguments pass through, for example
 `splash codex resume --last` or `splash hermes chat -q "Hello"`.
 
@@ -415,6 +415,15 @@ Hermes, which reserve it out of the context they compact at, get a quarter of a
 context under 128K instead. Hermes 2026.9.7 and later ignore it and, like Codex,
 leave the limit to the server; Claude Code keeps its own, which
 `CLAUDE_CODE_MAX_OUTPUT_TOKENS` raises.
+
+`splash omp` connects [Oh My Pi](https://github.com/can1357/oh-my-pi) to the
+running server. It adds the per-port provider to OMP's `models.yml` (or an
+existing `models.yaml`) in `~/.omp/agent`, respecting `PI_CODING_AGENT_DIR`,
+`PI_CONFIG_DIR`, and the selected OMP profile. Existing providers are preserved;
+a legacy `models.json` is imported without changing the original. The API key
+stays in `SPLASH_API_KEY`, referenced by name in the provider configuration.
+Use `splash omp --config-only` to configure without launching. Arguments such
+as `--profile work`, `--resume SESSION` and `--config extra.yml` pass through.
 
 `splash hermes` runs Hermes in the `splash` profile (`splash-<port>`) of the
 user's Hermes root, `~/.hermes` or the root `HERMES_HOME` belongs to, and
@@ -2072,8 +2081,8 @@ does, and `REVISION`, `DRAFT_MODEL` and `LANGUAGE_ONLY=1` as its `--revision`,
 | `verify-models` | the installer's restarts without the Hub, `verify --full`, and the record of the weight images (`dev/tools/installer_restarts.py`, `weight-digests`, [Release check](#release-check)) |
 | `test-real` | vision parity with the family's fixture in `dev/tests/fixtures/vision-parity/` when the installation serves vision, and the native model runtime oracle |
 | `test-http-real` | the HTTP frontend on an isolated server (`dev/tests/smoke_real.py`); with `HTTP_SMOKE_ARGS="--persistent-cache --max-cache-disk 8G"`, instead of that smoke, the [persistent cache](#persistent-cache) across a restart in a fresh cache directory: a clean stop, a restart that takes the restore point back, and a next turn that restores the prompt from disk; `release-check` runs both |
-| `test-agent-real` | the five official clients through `splash serve` (`dev/tests/agent_real.py`), in `AGENT_SCENARIO` `complete` (the default) or `smoke` |
-| `test-release-real` | the HTTP smoke and all five clients on one `splash serve` |
+| `test-agent-real` | the six official clients through `splash serve` (`dev/tests/agent_real.py`), in `AGENT_SCENARIO` `complete` (the default) or `smoke` |
+| `test-release-real` | the HTTP smoke and all six clients on one `splash serve` |
 | `test-performance-real` | the native decode, partial-prefix and short-prompt benchmark, or with `BASELINE` its ABBA comparison with that build (`dev/benchmarks/backend_regression.py`) |
 | `release-check` | one model on this Mac ([Release check](#release-check)) |
 

@@ -267,9 +267,11 @@ class CompletionTests(unittest.TestCase):
                     "opencode",
                     "hermes",
                     "pi",
+                    "omp",
                 ],
             ),
             (["splash", "co"], ["codex"]),
+            (["splash", "om"], ["omp"]),
             (["splash", "download-draft", "--model", "community/l"], [LOCAL[1]]),
             (["splash", "serve", "--download"], ["--download-draft"]),
             (["splash", "download-draft", "--model-d"], ["--model-dir"]),
@@ -343,7 +345,7 @@ class CompletionTests(unittest.TestCase):
                         ),
                         expected,
                     )
-            for agent in ("claude", "codex", "opencode", "hermes", "pi"):
+            for agent in ("claude", "codex", "opencode", "hermes", "pi", "omp"):
                 with self.subTest(shell=shell, agent=agent):
                     self.assertEqual(
                         self.bash_complete(
@@ -525,6 +527,7 @@ class CompletionTests(unittest.TestCase):
         for line, expected in (
             ("splash se", "splash serve "),
             ("splash p", "splash pi "),
+            ("splash om", "splash omp "),
             ("splash dow", "splash download-draft "),
             ("splash serve --download", "splash serve --download-draft "),
             (
@@ -539,6 +542,7 @@ class CompletionTests(unittest.TestCase):
             ),
             ("splash claude --model community/l", "splash claude --model community/l"),
             ("splash pi --model community/l", "splash pi --model community/l"),
+            ("splash omp --model community/l", "splash omp --model community/l"),
         ):
             with self.subTest(line=line):
                 self.assertEqual(self.shell_tab(directory / "_splash", line), expected)

@@ -31,7 +31,7 @@ Once it prints `Ready`, leave this terminal open. Open <http://127.0.0.1:8000>
 in your browser, or run an installed coding agent from another terminal:
 
 ```bash
-splash opencode    # or: splash claude / splash codex / splash hermes / splash pi
+splash opencode    # or: splash claude / splash codex / splash hermes / splash pi / splash omp
 ```
 
 For a server started with another `--port`, pass the same `--port` to the agent.

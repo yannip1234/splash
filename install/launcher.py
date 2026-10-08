@@ -368,6 +368,9 @@ def coding_client(args):
         client_args=args.client_args,
         client_version=client_version,
     )
+    if args.config_only:
+        print(f"Configured omp: {model} · {context:,} context tokens", flush=True)
+        return 0
     print(f"Starting {args.command}: {model} · {context:,} context tokens", flush=True)
     if args.command == "claude":
         print(
@@ -521,8 +524,14 @@ def parse_args(argv=None):
             type=_parse_port,
             help=f"server port (default: SPLASH_PORT or {serve_options.DEFAULT_PORT})",
         )
+        if name == "omp":
+            client.add_argument(
+                "--config-only",
+                action="store_true",
+                help="configure OMP's Splash provider without launching the client",
+            )
     if is_client:
-        # Only --port belongs to Splash; preserve the agent's other arguments,
+        # --port and OMP's --config-only belong to Splash; preserve other arguments,
         # including --help, and stop interpreting options at its separator.
         args, client_args = parser.parse_known_args(argv)
         if client_args[:1] == ["--"]:
@@ -543,6 +552,7 @@ def parse_args(argv=None):
     if client_args and args.command == "serve":
         parser.error("arguments after -- are only supported for coding clients")
     args.client_args = client_args
+    args.config_only = getattr(args, "config_only", False)
     return args
 
 
