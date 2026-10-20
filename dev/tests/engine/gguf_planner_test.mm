@@ -96,9 +96,10 @@ void checkDense(const std::filesystem::path &directory) {
   }
 }
 
-// alpha/beta of any one quantized format, on either architecture: one 256-row
-// tensor of that format, the beta then the alpha rows at its native row bytes
-// in grouped head order; a pair of two types is refused by both names.
+// alpha/beta of any one GGUF tensor type of a format (llama.cpp's NVFP4 as
+// NVFP4), on either architecture: one 256-row tensor of that format, the beta
+// then the alpha rows at its native row bytes in grouped head order; a pair of
+// two types is refused by both names.
 void checkQuantizedAlphaBeta(const std::filesystem::path &directory) {
   for (bool moe : {false, true}) {
     const SmallTarget target = smallTarget(moe);
@@ -115,12 +116,15 @@ void checkQuantizedAlphaBeta(const std::filesystem::path &directory) {
       return tensors;
     };
     for (uint32_t format = 0; format < GGUF_FMT_COUNT; ++format) {
-      const uint32_t type = kQuantFormats[format].ggml_type;
+      const std::optional<uint32_t> stored = ggufType(format);
+      if (!stored) continue;
+      const uint32_t type = *stored;
       writeGguf(path, tensorsWith(type, type), g);
       const Plan result = plan(path, g);
       const auto *pair = result.error ? nullptr : repackOf(result.images[0], "blk.0.ssm_beta.weight");
+      // Rows of the format's native blocks (llama.cpp's NVFP4 as NVFP4's).
       const auto heads = [&](const model::gguf::TensorRows &rows, const char *name) {
-        return rows.name == name && rows.type == type && rows.rows == g.gdnValueHeads &&
+        return rows.name == name && rows.type == kQuantFormats[format].ggml_type && rows.rows == g.gdnValueHeads &&
                rows.rowBytes == gguf_reference::rowBytes(Fmt(format), g.hiddenSize) && grouped(rows.order, 0, 1, g);
       };
       check(pair && pair->format == format && pair->rows == QUANT_TILE_ROWS && pair->columns == g.hiddenSize &&
@@ -136,6 +140,28 @@ void checkQuantizedAlphaBeta(const std::filesystem::path &directory) {
       check(names(plan(path, g), {betaName, alphaName}),
             "planner refuses alpha/beta of two types by both names: " + betaName + ", " + alphaName);
     }
+  }
+}
+
+// Native IQ1_M token rows stay compressed: the loader plans a byte copy,
+// while projection tensors continue to use their existing repacked formats.
+void checkIQ1MEmbedding(const std::filesystem::path &directory) {
+  for (bool moe : {false, true}) {
+    SmallTarget target = smallTarget(moe);
+    const auto &g = target.geometry;
+    Tensor &embedding = tensorNamed(target.tensors, "token_embd.weight");
+    embedding.type = kQuantFormats[gguf_reference::IQ1M].ggml_type;
+    embedding.data.resize(uint64_t{g.vocabularySize} * (g.hiddenSize / 256) * 56);
+    const auto path = directory / "iq1m-embedding.gguf";
+    writeGguf(path, target.tensors, g);
+    const Plan result = plan(path, g);
+    check(!result.error, std::string("planner accepts native IQ1_M token embeddings (") + model::gguf::architecture(g.ffnKind) +
+                            ")" + (result.error ? ": " + *result.error : ""));
+    if (result.error) continue;
+    const auto *copy = copyIn(result, "token_embd.weight");
+    check(asStored(copy, embedding.data) && copy->source.type == embedding.type &&
+              copy->source.rowBytes == uint64_t{g.hiddenSize / 256} * 56 && result.images.back().repacks.empty(),
+          "planner keeps IQ1_M token rows at 56 bytes per 256 elements");
   }
 }
 
@@ -291,6 +317,7 @@ int main() {
     guarded("planner on the dense target", [&] { checkDense(directory.path()); });
     guarded("planner on the MoE target", [&] { checkMoe(directory.path()); });
     guarded("planner on quantized alpha/beta", [&] { checkQuantizedAlphaBeta(directory.path()); });
+    guarded("planner on native IQ1_M embeddings", [&] { checkIQ1MEmbedding(directory.path()); });
     guarded("planner on the rotary metadata", [&] { checkRotary(directory.path()); });
     guarded("planner on a rotated target", [&] { checkRotation(directory.path()); });
     std::printf("%s (%d failures)\n", failures ? "GGUF planner tests FAILED" : "GGUF planner tests passed", failures);

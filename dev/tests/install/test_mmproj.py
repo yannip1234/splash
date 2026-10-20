@@ -70,6 +70,35 @@ class MmprojTests(unittest.TestCase):
         self.assertEqual(self.fake.requests, [])
         self.assertEqual(self.fake.downloads, [])
 
+    def test_q8_and_f16_overrides_use_the_ordinary_atomic_assembly(self):
+        self.target(self.library / self.model)
+        for kind in (GGML["F16"], GGML["Q8_0"]):
+            with self.subTest(kind=kind):
+                self.projector_file(self.projector, kind=kind)
+                chosen = self.selection()
+                record = self.prepare(chosen)
+                self.assertEqual(record["vision_format"], "gguf")
+                self.assertEqual(
+                    (chosen.link / "vision/mmproj.gguf").resolve(), self.projector
+                )
+                original = chosen.link.resolve()
+                self.prepare(chosen)
+                self.assertEqual(chosen.link.resolve(), original)
+
+    def test_invalid_q8_replacement_does_not_publish_over_existing_selection(self):
+        self.target(self.library / self.model)
+        self.projector_file(self.projector, kind=GGML["Q8_0"])
+        chosen = self.selection()
+        self.prepare(chosen)
+        original = chosen.link.resolve()
+        self.projector_file(
+            self.projector, kind=GGML["Q8_0"], changes={"clip.vision.patch_size": 8}
+        )
+        with self.assertRaises(models.ModelError):
+            self.prepare(chosen)
+        self.assertEqual(chosen.link.resolve(), original)
+        self.assertEqual(self.fake.downloads, [])
+
     def test_override_wins_over_bundled_projector(self):
         target = self.library / self.model
         self.target(target)
@@ -122,8 +151,7 @@ class MmprojTests(unittest.TestCase):
             ({"clip.vision.attention.layer_norm_epsilon": 1e-5}, GGML["BF16"]),
             ({"clip.vision.is_deepstack_layers": [False] * 2}, GGML["BF16"]),
             ({"clip.vision.is_deepstack_layers": [""] * 27}, GGML["BF16"]),
-            ({}, GGML["F16"]),
-            ({}, GGML["Q8_0"]),
+            ({}, GGML["Q4_K"]),
         ):
             with self.subTest(changes=changes, kind=kind):
                 self.projector_file(self.projector, changes=changes, kind=kind)
@@ -158,7 +186,6 @@ class MmprojTests(unittest.TestCase):
             mock.patch.object(launcher, "_check_port"),
             mock.patch.object(launcher, "_ensure_installed") as install,
             mock.patch.object(launcher.os, "execve"),
-            mock.patch.object(launcher.catalog, "spawn_refresh"),
             mock.patch.object(launcher.signal, "signal"),
             mock.patch.object(launcher.signal, "pthread_sigmask"),
         ):
